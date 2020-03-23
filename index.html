@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<head>
+<style>
+     canvas {
+        background-color: #e1e1e1;
+        border: 2px solid #d2d2d2;
+	background-color:black;
+	display: inline block;
+     }
+     body {
+	text-align: center;
+	margin: center;
+     }
+</style>
+</head>
+<body onload="startGame()">
+    <script type="text/javascript">
+	var key = 1;
+	var keyCheckFire = [1, 1, 1];
+	var keyset = [1, 1, 1];
+	var myGameAreaKey = [];
+	var myCharacter = [];
+	var ctx;
+	var direct = [undefined , "up", "down"]
+	var x = 0; 
+	    // đặt bullet[0] và numB[0] là undefined để đỡ nhầm lẫn, vì không sử dụng đến index 0, chỉ dùng 1 và 2
+	var bullet = [undefined, [], []]; // đạn
+							    // bullet[1] là array những viên đạn của nhân vật 1
+							    // bullet[2] là array những viên đạn của nhân vật 2
+	numB = [undefined, 0, 0]; // số viên đạn của nhân vật
+				  // numB[1] là số viên đạn mà nhân vật 1 đang có, cũng chính là bullet[1].length - 1
+				  // viết như vậy để có thể sử dụng bullet[index][ numB[index] ] cho tiện
+
+	    // random 1 số thuộc đoạn [min, max]
+	function getRndInteger(min, max) {
+		Rnd = Math.floor(Math.random() * (max - min)) + min;
+		if (Rnd == 0) return getRndInteger(min, max);
+		else return Rnd;
+	}
+	function gameOver(id) {
+		clearInterval(myGameArea.interval);
+		var ctxEndGame = myGameArea.context;
+		ctxEndGame.font = "60px monospace";
+		ctxEndGame.fillStyle = "#ff3333";
+		if (id == 1) {
+			ctxEndGame.fillText("Yellow win", 200, 200);
+		}
+		else {
+			ctxEndGame.fillText("Green win", 200, 200);
+		}
+		    // console.log("Player " + id + " is the winner");
+		return;
+	}
+	    // khoảng cách
+	function distance(xA, yA, xB, yB) {
+	return (Math.sqrt(Math.pow((xA - xB), 2) + Math.pow((yA - yB), 2)));
+	}
+	
+	function checkArea(xB, yB, widthB, heightB, xTL, yTL, xRB, yRB) {
+		
+		if ((xB - xTL) * (xB - xRB) < 0 && (yB - yTL) * (yB - yRB) < 0) return true;
+		if ((xB + widthB - xTL) * (xB + widthB - xRB) < 0 && (yB - yTL) * (yB - yRB) < 0) return true;
+		if ((xB + widthB - xTL) * (xB + widthB - xRB) < 0 && (yB + heightB - yTL) * (yB + heightB - yRB) < 0) return true;
+		if ((xB - xTL) * (xB - xRB) < 0 && (yB + heightB - yTL) * (yB + heightB - yRB) < 0) return true;
+
+		return false;
+
+	}
+
+
+	function reload(idex) {
+		bullet[idex].length = 0;
+		numB[idex] = 0;	
+		
+	}
+
+	    // check xem đạn có bắn vào tank hoặc 2 tank có chạm vào nhau không
+	function checkMoveTanks(i1) {
+		var i2 = 2;
+		if (i1 == 2) i2 = 1;
+		if (direct[i1] == "up") {
+			if ( checkArea(myCharacter[i1].x, myCharacter[i1].y, myCharacter[i1].width, 0,
+				      myCharacter[i2].x, myCharacter[i2].y, myCharacter[i2].x + myCharacter[i2].width,
+				      myCharacter[i2].y + myCharacter[i2].height) || 
+			     (myCharacter[i1].x == myCharacter[i2].x && 
+			      (myCharacter[i1].y - myCharacter[i2].y - myCharacter[i2].height) * (myCharacter[i1].y - myCharacter[i2].y) < 0))
+				myCharacter[i1].y = myCharacter[i2].y + myCharacter[i2].height;
+		
+		}
+		if (direct[i1] == "down") {
+			if ( checkArea(myCharacter[i1].x, myCharacter[i1].y + myCharacter[i1].height, myCharacter[i1].width, 0,
+				      myCharacter[i2].x, myCharacter[i2].y, myCharacter[i2].x + myCharacter[i2].width,
+				      myCharacter[i2].y + myCharacter[i2].height) || 
+			     (myCharacter[i1].x == myCharacter[i2].x && 
+			      (myCharacter[i1].y + myCharacter[i1].height - myCharacter[i2].y) * (myCharacter[i1].y + myCharacter[i1].height - myCharacter[i2].y - myCharacter[i2].height) < 0)) 
+				myCharacter[i1].y = myCharacter[i2].y - myCharacter[i1].height;
+			
+		}
+		if (direct[i1] == "left") {
+			if ( checkArea(myCharacter[i1].x, myCharacter[i1].y, 0, myCharacter[i1].height,
+				      myCharacter[i2].x, myCharacter[i2].y, myCharacter[i2].x + myCharacter[i2].width,
+				      myCharacter[i2].y + myCharacter[i2].height) || 
+			     (myCharacter[i1].y == myCharacter[i2].y && 
+			      (myCharacter[i1].x - myCharacter[i2].x - myCharacter[i2].width) * (myCharacter[i1].x - myCharacter[i2].x) < 0))
+				myCharacter[i1].x = myCharacter[i2].x + myCharacter[i2].width;
+			
+		}
+		if (direct[i1] == "right") {
+			if ( checkArea(myCharacter[i1].x + myCharacter[i2].width, myCharacter[i1].y, 0, myCharacter[i1].height,
+				      myCharacter[i2].x, myCharacter[i2].y, myCharacter[i2].x + myCharacter[i2].width,
+				      myCharacter[i2].y + myCharacter[i2].height) || 
+			     (myCharacter[i1].y == myCharacter[i2].y && 
+			      (myCharacter[i1].x + myCharacter[i1].width - myCharacter[i2].x) * (myCharacter[i1].x + myCharacter[i1].width - myCharacter[i2].x - myCharacter[i2].width) < 0)) 
+				myCharacter[i1].x = myCharacter[i2].x - myCharacter[i2].width;
+			
+		}
+	}
+
+	function checkCollision() {
+
+		
+		// check xem đạn có bắn vào tank 
+		for (var j = 1; j <= numB[1]; j++) {
+			if( checkArea(bullet[1][j].x, bullet[1][j].y, bullet[1][j].width, bullet[1][j].height,
+				  myCharacter[2].x, myCharacter[2].y, myCharacter[2].x + myCharacter[2].width,
+				  myCharacter[2].y + myCharacter[2].height) ) gameOver(1);
+		}
+		for (var j = 1; j <= numB[2]; j++) {
+			if( checkArea(bullet[2][j].x, bullet[2][j].y, bullet[2][j].width, bullet[2][j].height,
+				  myCharacter[1].x, myCharacter[1].y, myCharacter[1].x + myCharacter[1].width,
+				  myCharacter[1].y + myCharacter[1].height) ) gameOver(2);
+		}
+
+
+	}
+
+
+
+	function startGame() {
+			myGameArea.start(); // khởi tạo vùng chơi game
+			myCharacter[1] = new component(60, 60, "", 0, 0, "image", 1);
+			myCharacter[2] = new component(60, 60, "", 640, 340, "image", 2);
+			myCharacter[1].colorB = "#ff9900";
+			myCharacter[2].colorB = "#33ff00";
+
+	}
+	// vùng chơi game myGameArea	
+	var myGameArea = {
+		   // tạo canvas
+		canvas : document.createElement("canvas"),
+		   // chỉ định thuộc tính canvas
+		start : function() {
+				this.canvas.width = 700;
+        			this.canvas.height = 400;
+        			this.context = this.canvas.getContext("2d");
+				document.body.insertBefore(this.canvas, document.body.childNodes[0]);
+				this.interval = setInterval(updateGameArea, 20);
+				window.addEventListener('keydown', function (e) {
+           				 myGameAreaKey[e.keyCode] = true;
+       				})
+        			window.addEventListener('keyup', function (e) {
+          				  myGameAreaKey[e.keyCode] = false;
+       				})
+				
+  		},
+ 		clear : function() {
+    				this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+				// console.log("clear");
+  		}
+	}
+	// nhân vật
+	function component(width, height, color, x, y, type, index) {
+		if (type == "image") {
+			this.image = new Image();
+			this.image.src = color;
+		}
+		this.width = width;
+		this.height = height;
+		this.color = color;
+		this.x = x;
+		this.y = y;
+		this.index = index;
+		this.speedX = 0;
+		this.speedY = 0;
+		this.type = type;
+
+		    // cập nhật
+		this.update = function() {
+			
+			ctx = myGameArea.context;
+
+			    // in ra màn hình
+			if (this.type == "image") {
+				this.image.src = "tank" + this.index + "-" + direct[this.index] + ".jpg";
+				ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
+				// console.log("drawImage" + this.index);
+				
+			}
+			else {
+				ctx.fillStyle = this.color;
+				ctx.fillRect(this.x, this.y, this.width, this.height);
+				// console.log("drawRect");
+			}	
+		}
+		this.newStatus = function() {
+
+			    // thay đổi vị trí
+			this.x += this.speedX;
+			this.y += this.speedY;
+
+			    // đảm bảo đối tượng không chạy ra khỏi khung hình chơi game
+			    // nv luôn năm trong khung hình
+			if (this.type == "image") {
+				    // nv luôn năm trong biên dọc
+				if (this.x < 0) {
+					this.x = 0;
+					this.speedX = 0;
+				}
+				if (this.x > myGameArea.canvas.width - this.width) {
+					this.x = myGameArea.canvas.width - this.width;
+					this.speedX = 0;
+				}
+			   	    // nv luôn nằm trong biên ngang
+				if (this.y < 0) {
+					this.y = 0;
+					this.speedY = 0;
+				}
+				if (this.y > myGameArea.canvas.height - this.height) {
+					this.y = myGameArea.canvas.height - this.height;
+					this.speedY = 0;
+				}
+				if (this.speedX || this.speedY) checkMoveTanks(this.index);
+			}
+			    // đạn luôn năm trong khung hình
+			else {
+				    // trong biên dọc
+				if (this.x < - this.width) {
+					this.x = - this.width - 2;
+					this.speedX = 0;
+				}
+				if (this.x > myGameArea.canvas.width) {
+					this.x = myGameArea.canvas.width + 2;
+					this.speedX = 0;
+				}
+				    // trong biên ngang
+				if (this.y < - this.height) {
+					this.y = - this.height - 2;
+					this.speedY = 0;
+				}
+				if (this.y > myGameArea.canvas.height) {
+					this.y = myGameArea.canvas.height + 2;
+					this.speedY = 0;
+				}
+			}
+					
+		}
+	}
+	
+	function fire(idx) {
+		    // nhân vật 1 bắn
+		    // khởi tạo viên đạn
+		if (direct[idx] == "left") {
+			numB[idx]++; // tăng số viên đạn của nhân vật idx
+			    // khởi tạo viên đạn thứ idx
+			bullet[idx][numB[idx]] = 
+			new component(20, 6, myCharacter[idx].colorB, 
+					myCharacter[idx].x - 20,
+					myCharacter[idx].y + myCharacter[idx].height / 2 - 3,
+					"rect", idx);
+			bullet[idx][numB[idx]].speedX = - 10;
+			bullet[idx][numB[idx]].speedY = 0;
+
+		}
+		if (direct[idx] == "right") {
+			numB[idx]++; // tăng số viên đạn của nhân vật idx
+			    // khởi tạo viên đạn thứ idx
+			bullet[idx][numB[idx]] = 
+			new component(20, 6, myCharacter[idx].colorB, 
+					myCharacter[idx].x + myCharacter[idx].width,
+					myCharacter[idx].y + myCharacter[idx].height / 2 - 3,
+					"rect", idx);
+			bullet[idx][numB[idx]].speedX = 10;
+			bullet[idx][numB[idx]].speedY = 0;
+
+
+		}
+		if (direct[idx] == "up") {
+			numB[idx]++; // tăng số viên đạn của nhân vật idx
+			    // khởi tạo viên đạn thứ idx
+			bullet[idx][numB[idx]] = 
+			new component(6, 16, myCharacter[idx].colorB, 
+					myCharacter[idx].x + myCharacter[idx].width / 2 - 3,
+					myCharacter[idx].y - 6,
+					"rect", idx);
+			bullet[idx][numB[idx]].speedY = - 10;
+			bullet[idx][numB[idx]].speedX = 0;
+		}
+		if (direct[idx] == "down") {
+			numB[idx]++; // tăng số viên đạn của nhân vật idx
+			    // khởi tạo viên đạn thứ idx
+			bullet[idx][numB[idx]] = 
+			new component(6, 16, myCharacter[idx].colorB, 
+					myCharacter[idx].x + myCharacter[idx].width / 2 - 3,
+					myCharacter[idx].y + myCharacter[idx].height,
+					"rect", idx);
+			bullet[idx][numB[idx]].speedY = 10;
+			bullet[idx][numB[idx]].speedX = 0;
+		}
+		
+		// console.log("firebullet" + numB[idx] + ": " + idx);
+	}
+	//*** đang sửa
+	function updateGameArea() {
+		x++;
+		// console.log("updateGameArea " + x);
+		if (key == 0) return;
+ 		myGameArea.clear();
+		myCharacter[1].speedX = 0;
+		myCharacter[1].speedY = 0;
+		myCharacter[2].speedX = 0;
+		myCharacter[2].speedY = 0;
+		    //a = 65, d == 68.
+		    // khi nhả phím, nhân vật sẽ đứng yên
+		if (myGameAreaKey[65] == true) {myCharacter[1].speedX = -5; direct[1] = "left";} // <-- console.log("1: left"); 
+		else if (myGameAreaKey[68] == true) {myCharacter[1].speedX = 5;; direct[1] = "right";} //  -->	 console.log("1: right")	    	
+		else if (myGameAreaKey[87] == true) {myCharacter[1].speedY = -5;  direct[1] = "up";} // ^  console.log("1: up");
+		else if (myGameAreaKey[83] == true) {myCharacter[1].speedY = 5;  direct[1] = "down";} //v  console.log("1: down");
+     			
+		
+
+		if (myGameAreaKey[37] == true) {myCharacter[2].speedX = -5; direct[2] = "left";} // A console.log("2: left");
+		else if (myGameAreaKey[39] == true) {myCharacter[2].speedX = 5; direct[2] = "right";} // D  console.log("2: right");
+		else if (myGameAreaKey[38] == true) {myCharacter[2].speedY = -5; direct[2] = "up";} // W console.log("2: up");
+		else if (myGameAreaKey[40] == true) {myCharacter[2].speedY = 5; direct[2] = "down";} // S console.log("2: down"); 
+
+		// hàm trễ để nạp đạn
+		// nv 1
+		if (keyCheckFire[1] == 0 && keyset[1] == 1) { 
+			setTimeout(function() {keyCheckFire[1] = 1;}, 1000);
+			keyset[1] = 0;
+		}
+
+		if (keyCheckFire[1] == 1) {
+			if (myGameAreaKey[32] == true) { // Space
+				keyCheckFire[1] = 0; keyset[1] = 1;
+				if (numB[1] > 10) reload(1);
+				fire(1); // console.log("1: fire");
+			
+			}
+		}
+		// nv 2
+		if (keyCheckFire[2] == 0 && keyset[2] == 1) { 
+			setTimeout(function() {keyCheckFire[2] = 1;}, 1000);
+			keyset[2] = 0;
+		}
+		
+		if (keyCheckFire[2] == 1) {
+			if (myGameAreaKey[75] == true) { // K
+				keyCheckFire[2] = 0; keyset[2] = 1;
+				if (numB[2] > 10) reload(2);
+				fire(2); // console.log("2: fire");
+			
+			}
+		}
+
+		for (var j = 1; j <= numB[1] ; j++) {
+			bullet[1][j].newStatus();
+  			bullet[1][j].update();
+		}
+		for (var j = 1; j <= numB[2] ; j++) {
+			bullet[2][j].newStatus();
+  			bullet[2][j].update();
+		}
+		
+		myCharacter[1].newStatus();
+  		myCharacter[1].update();
+		myCharacter[2].newStatus();
+		myCharacter[2].update();
+		checkCollision();
+		
+	}
+	
+
+        
+
+    </script>
+  	<p style="font-family: monospace;">
+	Player Green: use arrow keys on the keyboard to control and K to fire.</br>
+	Player Yellow: use keys A, D, W, S on the keyboard to control and Space to fire.</br>
+	You need 1s to reload bullet.</br>
+	Don't forget to turn off Vietnamese mode on Unikey.</br>
+	I hope you will enjoy it :D</br>
+	</p>
+</body>
+</html>
